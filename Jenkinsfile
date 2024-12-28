@@ -1,5 +1,7 @@
 pipeline {
-    agent any
+    agent {
+             label 'master'
+    }
     environment {
         DOCKER_IMAGE = 'depi-angular-app-jenkins'
         DOCKER_REGISTRY = 'alia98'
