@@ -1,53 +1,49 @@
 pipeline {
-         agent any
+    agent any
+    environment {
+        DOCKER_IMAGE = 'depi-angular-app-jenkins'
+        DOCKER_REGISTRY = 'alia98'
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
 
-         stages {
-             stage('Checkout') {
-                 steps {
-                     checkout scm
-                 }
-             }
+        stage('Docker Build') { // Removed misplaced closing brace
+            steps {
+                sh 'docker build -t $DOCKER_REGISTRY/$DOCKER_IMAGE:latest .'
+            }
+        }
 
-             stage('Install Dependencies') {
-                 steps {
-                     sh 'npm install'
-                 }
-             }
+        stage('Deploy') {
+            steps {
+                sh '''
+                    docker stop $DOCKER_IMAGE || true
+                    docker rm $DOCKER_IMAGE || true
+                    docker run -d --name $DOCKER_IMAGE -p 8000:80 $DOCKER_REGISTRY/$DOCKER_IMAGE:latest
+                '''
+            }
+        }
 
-             stage('Build') {
-                 steps {
-                     sh 'npm run build --prod'
-                 }
-             }
+        stage('Push') {
+            steps { 
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                        sh '''
+                            echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin
+                            docker push $DOCKER_REGISTRY/$DOCKER_IMAGE:latest
+                        '''
+                    }
+                }
+            }
+        }
+    }
 
-             stage('Test') {
-                 steps {
-                     echo 'Testing the Angular application'
-                     sh 'npm test'
-                 }
-             }
-
-             stage('Docker Build & Push') {
-                 environment {
-                     DOCKER_IMAGE = 'my-angular-app'
-                     DOCKER_REGISTRY = 'my-docker-registry'
-                 }
-                 steps {
-                     sh 'docker build -t $DOCKER_REGISTRY/$DOCKER_IMAGE:latest .'
-                     sh 'docker push $DOCKER_REGISTRY/$DOCKER_IMAGE:latest'
-                 }
-             }
-
-             stage('Deploy') {
-                 steps {
-                     sh 'docker run -d -p 80:80 $DOCKER_REGISTRY/$DOCKER_IMAGE:latest'
-                 }
-             }
-         }
-
-         post {
-             always {
-                 echo 'Pipeline completed!'
-             }
-         }
-     }
+    post {
+        always {
+            echo 'Pipeline completed!'
+        }
+    }
+}
